@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Wrist IMU Quat Test</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; font-family: system-ui, sans-serif; background: #000; color: #eee;
+    display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px;
+  }
+  h1 { font-size: 15px; margin: 4px 0; }
+  .row { display: flex; gap: 10px; width: 100%; justify-content: center; }
+  .panel {
+    flex: 1; max-width: 280px; border: 1px solid #333; border-radius: 8px; padding: 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .title { font-weight: 600; font-size: 13px; }
+  button { font-size: 13px; padding: 6px 12px; border-radius: 6px; border: 1px solid #555;
+    background: #1d1d1f; color: #eee; }
+  button.on { background: #0a7d2c; border-color: #0a7d2c; }
+  .status { font-size: 11px; min-height: 14px; text-align: center; }
+  .quat { font-family: monospace; font-size: 11px; white-space: pre; }
+  .stage { width: 90px; height: 90px; perspective: 320px; }
+  .cube { width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
+    transform: matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1); }
+  .face { position: absolute; width: 90px; height: 90px; opacity: .85;
+    border: 1px solid #fff2; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; color: #000; font-weight: 700; }
+  .f1{background:#e45}.f2{background:#4ae}.f3{background:#4e8}.f4{background:#ee5}.f5{background:#e94}.f6{background:#a6e}
+  .f1{transform:translateZ(45px)}.f2{transform:rotateY(180deg) translateZ(45px)}
+  .f3{transform:rotateY(90deg) translateZ(45px)}.f4{transform:rotateY(-90deg) translateZ(45px)}
+  .f5{transform:rotateX(90deg) translateZ(45px)}.f6{transform:rotateX(-90deg) translateZ(45px)}
+  .rate { font-size: 10px; color: #9a9; }
+  .err { color: #f77; }
+</style>
+</head>
+<body>
+  <h1>Wrist IMU Quaternion Test (RelativeOrientationSensor, sensorId="emg-wrist")</h1>
+  <div class="row">
+    <div class="panel" id="panelA">
+      <div class="title">Consumer A</div>
+      <div class="stage"><div class="cube" id="cubeA">
+        <div class="face f1">A</div><div class="face f2"></div><div class="face f3"></div>
+        <div class="face f4"></div><div class="face f5"></div><div class="face f6"></div>
+      </div></div>
+      <button id="btnA">Start A</button>
+      <div class="status" id="statusA">idle</div>
+      <div class="quat" id="quatA">x — y — z — w —</div>
+      <div class="rate" id="rateA"></div>
+    </div>
+    <div class="panel" id="panelB">
+      <div class="title">Consumer B</div>
+      <div class="stage"><div class="cube" id="cubeB">
+        <div class="face f1">B</div><div class="face f2"></div><div class="face f3"></div>
+        <div class="face f4"></div><div class="face f5"></div><div class="face f6"></div>
+      </div></div>
+      <button id="btnB">Start B</button>
+      <div class="status" id="statusB">idle</div>
+      <div class="quat" id="quatB">x — y — z — w —</div>
+      <div class="rate" id="rateB"></div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+  function makeConsumer(id) {
+    var btn = document.getElementById("btn" + id);
+    var statusEl = document.getElementById("status" + id);
+    var quatEl = document.getElementById("quat" + id);
+    var rateEl = document.getElementById("rate" + id);
+    var cube = document.getElementById("cube" + id);
+    var sensor = null, count = 0, t0 = 0, rateTimer = null;
+
+    function fmt(v) { return (v >= 0 ? " " : "") + v.toFixed(3); }
+
+    function onReading() {
+      var q = sensor.quaternion;
+      if (!q) return;
+      quatEl.textContent = "x" + fmt(q[0]) + " y" + fmt(q[1]) + " z" + fmt(q[2]) + " w" + fmt(q[3]);
+      // Drive the cube from the quaternion. Prefer the spec populateMatrix; fall back to manual.
+      var m;
+      try {
+        var dm = new DOMMatrix();
+        sensor.populateMatrix(dm);
+        m = [dm.m11,dm.m12,dm.m13,dm.m14, dm.m21,dm.m22,dm.m23,dm.m24,
+             dm.m31,dm.m32,dm.m33,dm.m34, dm.m41,dm.m42,dm.m43,dm.m44];
+      } catch (e) {
+        m = quatToMatrix(q);
+      }
+      cube.style.transform = "matrix3d(" + m.join(",") + ")";
+      count++;
+    }
+
+    function quatToMatrix(q) {
+      var x=q[0],y=q[1],z=q[2],w=q[3];
+      return [1-2*y*y-2*z*z, 2*x*y+2*z*w, 2*x*z-2*y*w, 0,
+              2*x*y-2*z*w, 1-2*x*x-2*z*z, 2*y*z+2*x*w, 0,
+              2*x*z+2*y*w, 2*y*z-2*x*w, 1-2*x*x-2*y*y, 0,
+              0,0,0,1];
+    }
+
+    function start() {
+      if (typeof RelativeOrientationSensor === "undefined") {
+        statusEl.innerHTML = '<span class="err">RelativeOrientationSensor not available (feature gate off?)</span>';
+        return;
+      }
+      try {
+        sensor = new RelativeOrientationSensor({ sensorId: "emg-wrist", frequency: 60 });
+      } catch (e) {
+        statusEl.innerHTML = '<span class="err">ctor failed: ' + e.name + '</span>';
+        return;
+      }
+      sensor.addEventListener("reading", onReading);
+      sensor.addEventListener("activate", function () { statusEl.textContent = "streaming"; });
+      sensor.addEventListener("error", function (ev) {
+        var err = ev.error || {};
+        statusEl.innerHTML = '<span class="err">' + (err.name || "error") + ": " + (err.message || "") + '</span>';
+      });
+      sensor.start();
+      statusEl.textContent = "starting…";
+      btn.textContent = "Stop " + id; btn.classList.add("on");
+      count = 0; t0 = performance.now();
+      rateTimer = setInterval(function () {
+        var dt = (performance.now() - t0) / 1000;
+        rateEl.textContent = dt > 0 ? (count / dt).toFixed(0) + " Hz (" + count + " samples)" : "";
+      }, 1000);
+    }
+
+    function stop() {
+      if (sensor) { try { sensor.stop(); } catch (e) {} sensor = null; }
+      if (rateTimer) { clearInterval(rateTimer); rateTimer = null; }
+      statusEl.textContent = "stopped";
+      btn.textContent = "Start " + id; btn.classList.remove("on");
+    }
+
+    btn.addEventListener("click", function () {
+      if (btn.classList.contains("on")) stop(); else start();
+    });
+  }
+  makeConsumer("A");
+  makeConsumer("B");
+})();
+</script>
+</body>
+</html>
