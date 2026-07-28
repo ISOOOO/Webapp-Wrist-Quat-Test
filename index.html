@@ -23,16 +23,18 @@
   button.on { background: #0a7d2c; border-color: #0a7d2c; }
   .status { font-size: 11px; min-height: 14px; text-align: center; }
   .quat { font-family: monospace; font-size: 11px; white-space: pre; }
-  .stage { width: 90px; height: 90px; perspective: 320px; }
-  .cube { width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
+  /* Stage clips so a rotated cube can never overlap the title/button. */
+  .stage { width: 96px; height: 96px; margin: 4px auto; perspective: 480px; overflow: hidden; }
+  /* Cube 46px → bounding diameter ~80px, fits inside the 96px stage even when fully rotated. */
+  .cube { width: 46px; height: 46px; position: relative; margin: 25px auto; transform-style: preserve-3d;
     transform: matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1); }
-  .face { position: absolute; width: 90px; height: 90px; opacity: .85;
+  .face { position: absolute; width: 46px; height: 46px; opacity: .85;
     border: 1px solid #fff2; display: flex; align-items: center; justify-content: center;
-    font-size: 22px; color: #000; font-weight: 700; }
+    font-size: 15px; color: #000; font-weight: 700; }
   .f1{background:#e45}.f2{background:#4ae}.f3{background:#4e8}.f4{background:#ee5}.f5{background:#e94}.f6{background:#a6e}
-  .f1{transform:translateZ(45px)}.f2{transform:rotateY(180deg) translateZ(45px)}
-  .f3{transform:rotateY(90deg) translateZ(45px)}.f4{transform:rotateY(-90deg) translateZ(45px)}
-  .f5{transform:rotateX(90deg) translateZ(45px)}.f6{transform:rotateX(-90deg) translateZ(45px)}
+  .f1{transform:translateZ(23px)}.f2{transform:rotateY(180deg) translateZ(23px)}
+  .f3{transform:rotateY(90deg) translateZ(23px)}.f4{transform:rotateY(-90deg) translateZ(23px)}
+  .f5{transform:rotateX(90deg) translateZ(23px)}.f6{transform:rotateX(-90deg) translateZ(23px)}
   .rate { font-size: 10px; color: #9a9; }
   .err { color: #f77; }
 </style>
